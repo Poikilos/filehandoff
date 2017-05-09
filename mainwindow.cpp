@@ -5,13 +5,14 @@
 #include <QTextStream>
 #include <QProcess>
 #include <QTimer>
+#include <QDebug>
+#include <QStandardPaths>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-
     QTimer::singleShot(0, this, SLOT(handoff()));
     //handoff();
 }
@@ -27,7 +28,61 @@ void MainWindow::handoff()
         if (QCoreApplication::arguments().length()==self_offset+1) {
             QString source_path = QCoreApplication::arguments().at(self_offset);
             if (source_path.toLower().endsWith(".url")) {
-                this->path="firefox";
+                this->myfolder_name="filehandoff";
+                QString homeLocation = QStandardPaths::locate(QStandardPaths::HomeLocation, QString(), QStandardPaths::LocateDirectory);
+                QString apps_data_path =  QDir::cleanPath(homeLocation + QDir::separator() + ".config");
+                if (!QDir(apps_data_path).exists()) QDir().mkdir(apps_data_path);
+                this->mydata_path = QDir::cleanPath(apps_data_path + QDir::separator() + this->myfolder_name);
+                if (!QDir(this->mydata_path).exists()) QDir().mkdir(this->mydata_path);
+
+                this->browsers_list_path = QDir::cleanPath(this->mydata_path + QDir::separator() + "browsers.txt");
+
+                this->path = "";
+
+                QFile browsersFile(this->browsers_list_path);
+                QString try_path;
+                if (browsersFile.open(QIODevice::ReadOnly)) {
+                   QTextStream in(&browsersFile);
+                   while (!in.atEnd()) {
+                      QString line = in.readLine();
+                      line = line.trimmed();
+                      if (line.length()>0) {
+                          try_path = line;
+                          QFileInfo try_file(try_path);
+                          this->path = try_path;
+                          if (try_file.exists()) break;
+                      }
+                   }
+                   browsersFile.close();
+                }
+                else {
+                    this->browser_search_paths.append("/usr/bin/waterfox");
+                    this->browser_search_paths.append("/usr/bin/firefox-kde");
+                    this->browser_search_paths.append("/usr/bin/firefox-nightly");
+                    this->browser_search_paths.append("/usr/bin/firefox-developer");
+                    this->browser_search_paths.append("/usr/bin/firefox-beta");
+                    this->browser_search_paths.append("/usr/bin/firefox");
+                    this->browser_search_paths.append("/usr/bin/chromium");
+                    this->browser_search_paths.append("/usr/bin/google-chrome");
+                    this->browser_search_paths.append("/usr/bin/icecat");
+                    this->browser_search_paths.append("/usr/bin/firefox"); //firefox again here to write to browsers.txt if none above exist
+                    for (int i = 0; i < this->browser_search_paths.size(); ++i) {
+                        //cout << this->browser_search_paths.at(i).toLocal8Bit().constData() << endl;
+                        try_path = this->browser_search_paths.at(i);
+                        QFileInfo try_file(try_path);
+                        this->path = try_path;
+                        if (try_file.isFile()) break; //uses /usr/bin/firefox (or whatever is last above) if all else fails
+                    }
+                    QFile caFile(this->browsers_list_path);
+                    caFile.open(QIODevice::WriteOnly | QIODevice::Text);
+                    if(!caFile.isOpen()){
+                        qDebug() << "ERROR unable to open" << this->browsers_list_path << "for output";
+                    }
+                    QTextStream outStream(&caFile);
+                    outStream << this->path;
+                    caFile.close();
+                }
+
                 this->ext_string="url";
                 //this->args.append(theoretical_path);
                 QFile inputFile(source_path);
@@ -42,7 +97,9 @@ void MainWindow::handoff()
                           else url_enable=false;
                       }
                       else if (line.toLower().startsWith("url=")) {
-                          this->args.append(line.right(line.length()-4).trimmed());
+                          QString url_string = line.right(line.length()-4).trimmed();
+                          if (this->path=="/usr/bin/firefox") this->args.append("-new-tab "+url_string);
+                          else this->args.append(url_string);
                           break;
                       }
                    }
@@ -84,7 +141,8 @@ void MainWindow::handoff()
                 //this->args.append("WINEARCH=win32");
                 //this->args.append("WINEPREFIX="+wine_prefix);
 
-                this->args.append("C:\\Program\ Files\\Adobe\\Photoshop\ Elements\ 5.0\\Photoshop\ Elements\ 5.0.exe");
+                //this->args.append("C:\\Program\ Files\\Adobe\\Photoshop\ Elements\ 5.0\\Photoshop\ Elements\ 5.0.exe");
+                this->args.append("C:\\Program Files\\Adobe\\Photoshop Elements 5.0\\Photoshop Elements 5.0.exe");
                 QString root_winpath = "Z:";
                 QString dest_path = root_winpath + source_path.replace("/","\\");
                 this->args.append(dest_path);
