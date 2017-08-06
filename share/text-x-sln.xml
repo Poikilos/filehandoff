@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+    <mime-type type="text/x-sln">
+        <comment>Solution File</comment>
+        <icon name="text-x-sln"/>
+        <glob-deleteall/>
+        <glob pattern="*.sln"/>
+    </mime-type>
+</mime-info>
