@@ -23,7 +23,10 @@ private:
     QString mydata_path;
     QStringList args;
     QStringList browser_search_paths;
+    QStringList text_editor_search_paths;
     Ui::MainWindow *ui;
+    gid_t getGroupIdByName(const char *name);
+    uid_t getUserIdByName(const char *name);
 public slots:
     void handoff();
 };

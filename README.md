@@ -1,6 +1,9 @@
 # filehandoff
 Hand off paths from url files, corrected paths from shortcuts, or files themselves--to correct GNU or Wine programs
 
+## Changes:
+* (2017-12-20) added support for the following extensions with "unknown" mimetype: fpp (FlashPrint), mtl (Wavefront material)
+
 ## Usage:
 * Associate URL (and url) files and (wine) Adobe PhotoShop Elements 5.0 projects with filehandoff
 * If wrong browser is opened or no browser opens, edit 

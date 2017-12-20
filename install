@@ -1,0 +1,144 @@
+#!/bin/sh
+BIN_FILE_NAME=filehandoff
+PROJECT_NAME=filehandoff
+#CONF_NAME=filehandoff.conf
+BIN_DEST_DIR=/usr/local/bin
+#remember, project-specific info is also at end of this script (post-install notes)
+BIN_CONFLICT_DIR=/usr/bin
+if [ -f "$BIN_CONFLICT_DIR/$BIN_FILE_NAME" ]; then
+  echo
+  echo
+  echo "You are installing the source version of $PROJECT_NAME, so you must first remove the packaged version of $PROJECT_NAME to avoid conflicting file '$BIN_CONFLICT_DIR/$BIN_FILE_NAME'--if you used an earlier version of $PROJECT_NAME, you may have this file from a installer that was not yet up to standards so before running install again as root you will have to run:"
+  echo "su root"
+  echo "rm -f /usr/bin/$BIN_FILE_NAME"
+  echo
+  echo
+  exit 1
+fi
+
+#uhoh="is in"
+DEBUG_DIR="../build-$PROJECT_NAME-Desktop-Debug"
+RELEASE_DIR="../build-$PROJECT_NAME-Desktop-Release"
+SOURCE_BIN_DIR="$RELEASE_DIR"
+if [ ! -f "$RELEASE_DIR/$BIN_FILE_NAME" ]; then
+  SOURCE_BIN_DIR="$DEBUG_DIR"
+  if [ ! -f "$DEBUG_DIR/$BIN_FILE_NAME" ]; then
+    if [ -f "./$BIN_FILE_NAME" ]; then
+      SOURCE_BIN_DIR=.
+      echo "Using only copy of $BIN_FILE_NAME which is in current directory '.'"
+    else
+      echo
+      echo "Could not find '$DEBUG_DIR/$BIN_FILE_NAME' nor '$RELEASE_DIR/$BIN_FILE_NAME' so cannot install--$PROJECT_NAME.pro must be first built using Qt Creator 5, or the binary must be built by other means and placed in the same folder as this script."
+      exit 2
+      echo
+      echo
+    fi
+  else
+    echo "WARNING: Found '$DEBUG_DIR/$BIN_FILE_NAME' (but not '$RELEASE_DIR/$BIN_FILE_NAME') so installing debug version"
+  fi
+else
+  echo "Found '$RELEASE_DIR/$BIN_FILE_NAME'"
+fi
+
+#if both exist, do not use one that is -ot (older than) other one
+if [ -f "$RELEASE_DIR/$BIN_FILE_NAME" ]; then
+  if [ -f "$DEBUG_DIR/$BIN_FILE_NAME" ]; then
+    if [ "$DEBUG_DIR/$BIN_FILE_NAME" -ot "$RELEASE_DIR/$BIN_FILE_NAME" ]; then
+      SOURCE_BIN_DIR="$RELEASE_DIR"
+      echo "Using newer install source in '$RELEASE_DIR'"
+    else
+      SOURCE_BIN_DIR="$DEBUG_DIR"
+      echo "WARNING: Using newer install source in '$DEBUG_DIR'"
+    fi
+  fi
+fi
+BIN_FILE_PATH=$SOURCE_BIN_DIR/$BIN_FILE_NAME
+#cp -f ./bin/$BIN_FILE_NAME /usr/local/bin/
+BIN_DEST_FILE_PATH=$BIN_DEST_DIR/$BIN_FILE_NAME
+
+#if [ -f "$BIN_DEST_FILE_PATH" ]; then
+  #uhoh="was already installed..."
+#fi
+
+echo
+
+was_there=false
+if [ -f "$BIN_DEST_DIR/$BIN_FILE_NAME" ]; then
+  was_there=true
+  echo "removing old version..."
+  rm -f "$BIN_DEST_DIR/$BIN_FILE_NAME"
+  if [ -f "$BIN_DEST_DIR/$BIN_FILE_NAME" ]; then
+    echo
+    echo
+    echo "ERROR: install could not remove existing '$BIN_DEST_DIR/$BIN_FILE_NAME' since you don't have root permission (you must run this install script with root permissions)."
+    exit 3
+    echo
+    echo
+  fi
+fi
+
+cp -f "$BIN_FILE_PATH" "$BIN_DEST_DIR/"
+if [ ! -f "$BIN_DEST_DIR/$BIN_FILE_NAME" ]; then
+  echo
+  echo
+  #this error is always accurate since program would have exited already if file were already there before the cp command and couldn't be deleted: 
+  echo "ERROR: install could not create '$BIN_DEST_DIR/$BIN_FILE_NAME' since you don't have root permission (you must run this install script with root permissions)."
+  echo
+  echo
+  exit 4
+fi
+echo
+
+#sCreate="no"
+#sExistNote="changed"
+#outputconf="/etc/$CONF_NAME"
+#if [ -f $outputconf ]; then
+#  echo "Do you want to create a new $outputconf[y/N]?"
+#else
+#  sExistNote="created"
+#  echo "Do you want to create a new $outputconf[Y/n]?"
+#fi
+#read sCreate
+#if [ "${sCreate:0:1}" = "y" ]; then
+#echo
+#echo
+#else
+#echo "$outputconf not $sExistNote"
+#fi
+
+if [ ! -f "$BIN_FILE_PATH" ]; then
+  echo "$BIN_FILE_PATH not found!"
+  exit 5
+else
+   echo "found $BIN_FILE_PATH"
+fi
+
+if [ -f "$BIN_DEST_FILE_PATH" ]; then
+  echo "successfully copied to $BIN_DEST_FILE_PATH"
+  chmod a+x "$BIN_DEST_FILE_PATH"
+fi
+
+echo
+echo "TROUBLESHOOTING"
+echo "If you have trouble with a release binary, open"
+echo ".pro file in Qt Creator and build $BIN_FILE_NAME"
+echo "  * Build, 'Open Build and Run Kit Selector'"
+echo "  * Choose 'Release' near bottom left"
+echo "  * In Menu Bar, click 'Build,' 'Build All'"
+echo
+echo "USAGE AFTER SUCCESSFUL INSTALL"
+echo "right-click an ambiguous mime type such as pro file"
+echo "(QtCreator project file, which is 'plain text file' mimetype)"
+echo "open with, choose custom command, $BIN_FILE_NAME"
+echo "and check 'Always use this program'"
+echo
+if [ ! -z "$end_error" ]; then
+  #echo "WARNING: path to kate could not be found--install it or set the kate variable in $outputconf to full path of another binary which accepts -l <line> and -c <column> parameters."
+  echo "$end_error"
+else
+  #NOTE: this is accurate since would have exited already if couldn't edit
+  echo "Successfully installed."
+  echo
+fi
+
+

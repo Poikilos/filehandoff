@@ -7,6 +7,31 @@
 #include <QTimer>
 #include <QDebug>
 #include <QStandardPaths>
+#include <QtGlobal>  // qEnvironmentVariableIsSet etc
+#include <pwd.h>
+#include <grp.h>
+
+//see https://stackoverflow.com/questions/1009254/programmatically-getting-uid-and-gid-from-username-in-unix
+gid_t MainWindow::getGroupIdByName(const char *name)
+{
+    struct group *grp = getgrnam(name); /* don't free, see getgrnam() for details */
+    if(grp == NULL) {
+        //throw runtime_error(std::string("Failed to get groupId from groupname : ") + name);
+        throw std::runtime_error(std::string("Failed to get groupId from groupname : ") + name);
+    }
+    return grp->gr_gid;
+}
+
+//see https://stackoverflow.com/questions/1009254/programmatically-getting-uid-and-gid-from-username-in-unix
+uid_t MainWindow::getUserIdByName(const char *name)
+{
+    struct passwd *pwd = getpwnam(name); /* don't free, see getpwnam() for details */
+    if(pwd == NULL) {
+        //throw runtime_error(std::string("Failed to get userId from username : ") + name);
+        throw std::runtime_error(std::string("Failed to get userId from username : ") + name);
+    }
+    return pwd->pw_uid;
+}
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -27,6 +52,55 @@ void MainWindow::handoff()
     if (QCoreApplication::arguments().length()>self_offset) {
         if (QCoreApplication::arguments().length()==self_offset+1) {
             QString source_path = QCoreApplication::arguments().at(self_offset);
+            QString source_path_original = source_path;
+            if (source_path.toLower().startsWith("smb://") || source_path.startsWith("\\\\")) {
+                int server_start = 6;
+                QString slash = "/";
+                if (source_path.startsWith("\\\\")) {
+                    server_start = 2;
+                    slash="\\";
+                }
+                int server_end = source_path.indexOf(slash, server_start);
+                if (server_end > -1) {
+                    int share_i = server_end + 1;
+                    int share_end = source_path.indexOf(slash, share_i);
+                    QString slash_sub_path = "";
+                    if (share_end<=-1) share_end = source_path.length();
+                    else {
+                        slash_sub_path = source_path.mid(share_end);
+                        if (slash=="\\") slash_sub_path = slash_sub_path.replace("\\", "/");
+                    }
+                    try {
+                        QString share_name = source_path.mid(share_i, share_end-share_i).toLower();
+                        //if (qEnvironmentVariableIsSet("UID")) {
+                        //NOTE: UID environment variable doesn't work in this context (probably since GUI)
+                        QString server_name = source_path.mid(server_start, server_end-server_start).toLower();
+                        //QString uid_string = QString::fromLocal8Bit( qgetenv("UID") );
+                        QString this_user_name = qgetenv("USER");
+                        QString uid_string = QString::number( getUserIdByName(this_user_name.toStdString().c_str()) );
+
+                        source_path = "/run/user/" + uid_string + "/gvfs/smb-share:server=" + server_name + ",share=" + share_name + slash_sub_path;
+                        qDebug() << "source_path changed from \"" << source_path_original << " to " << source_path;
+                        //}
+                        //else qDebug() << "missing environment variable UID";
+                    }
+                    //see <https://stackoverflow.com/questions/4661883/qt-c-error-handling>
+                    catch (std::exception &e) {
+                        //qFatal("Error %s sending event %s to object %s (%s)",
+                            //e.what(), typeid(*event).name(), qPrintable(receiver->objectName()),
+                            //typeid(*receiver).name());
+                        qFatal("Could not finish: %s sending event to object",
+                               e.what());
+                        qDebug() << "Could not finish: " << e.what();
+                    } catch (...) {
+                        //qFatal("Error <unknown> sending event %s to object %s (%s)",
+                            //typeid(*event).name(), qPrintable(receiver->objectName()),
+                            //typeid(*receiver).name());
+                        qFatal("Could not finish <unknown> sending event to object");
+                        qDebug() << "Could not finish for unknown reason";
+                    }
+                }
+            }
             if (source_path.toLower().endsWith(".url")) {
                 this->myfolder_name="filehandoff";
                 QString homeLocation = QStandardPaths::locate(QStandardPaths::HomeLocation, QString(), QStandardPaths::LocateDirectory);
@@ -105,6 +179,41 @@ void MainWindow::handoff()
                    }
                    inputFile.close();
                 }
+            }
+            else if (source_path.toLower().endsWith(".mtl")) {
+                this->text_editor_search_paths.append("/usr/bin/kate");
+                this->text_editor_search_paths.append("/usr/bin/gedit");
+                this->text_editor_search_paths.append("/usr/bin/leafpad");
+                this->text_editor_search_paths.append("/usr/bin/mousepad");
+                QString try_path;
+                for (int i = 0; i < this->text_editor_search_paths.size(); ++i) {
+                    //cout << this->browser_search_paths.at(i).toLocal8Bit().constData() << endl;
+                    try_path = this->text_editor_search_paths.at(i);
+                    QFileInfo try_file(try_path);
+                    this->path = try_path;
+                    this->args.append(source_path);
+                    if (try_file.isFile()) break; //uses /usr/bin/firefox (or whatever is last above) if all else fails
+                }
+
+                this->ext_string="mtl";
+            }
+            else if (source_path.toLower().endsWith(".fpp")) {
+                QStringList fpp_bin_search_paths;
+                fpp_bin_search_paths.append("/usr/bin/flashprint");
+                fpp_bin_search_paths.append("/usr/local/bin/flashprint");
+                QString try_path;
+                for (int i = 0; i < fpp_bin_search_paths.size(); ++i) {
+                    //cout << this->browser_search_paths.at(i).toLocal8Bit().constData() << endl;
+                    try_path = fpp_bin_search_paths.at(i);
+                    QFileInfo try_file(try_path);
+                    if (try_file.isFile()) {
+                        this->path = try_path;
+                        this->args.append(source_path);
+                        break; //uses /usr/bin/firefox (or whatever is last above) if all else fails
+                    }
+                }
+
+                this->ext_string="fpp";
             }
             else if (source_path.toLower().endsWith(".psd") || source_path.toLower().endsWith(".jpg") || source_path.toLower().endsWith(".jpeg") || source_path.toLower().endsWith(".jpe")) {
                 //would be something like env WINEPREFIX="/home/owner/win32" /usr/bin/wine C:\\Program\ Files\\Adobe\\Photoshop\ Elements\ 5.0\\Photoshop\ Elements\ 5.0.exe
