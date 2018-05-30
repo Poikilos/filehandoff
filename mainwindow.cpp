@@ -101,7 +101,93 @@ void MainWindow::handoff()
                     }
                 }
             }
-            if (source_path.toLower().endsWith(".url")) {
+            if (source_path.toLower().endsWith(".desktop")) {
+                //TODO: tidy this up--almost identical to url--should be vastly different if not an internet shortcut
+                this->myfolder_name="filehandoff";
+                QString homeLocation = QStandardPaths::locate(QStandardPaths::HomeLocation, QString(), QStandardPaths::LocateDirectory);
+                QString apps_data_path =  QDir::cleanPath(homeLocation + QDir::separator() + ".config");
+                if (!QDir(apps_data_path).exists()) QDir().mkdir(apps_data_path);
+                this->mydata_path = QDir::cleanPath(apps_data_path + QDir::separator() + this->myfolder_name);
+                if (!QDir(this->mydata_path).exists()) QDir().mkdir(this->mydata_path);
+
+                this->browsers_list_path = QDir::cleanPath(this->mydata_path + QDir::separator() + "browsers.txt");
+
+                this->path = "";
+
+                QFile browsersFile(this->browsers_list_path);
+                QString try_path;
+                if (browsersFile.open(QIODevice::ReadOnly)) {
+                   QTextStream in(&browsersFile);
+                   while (!in.atEnd()) {
+                      QString line = in.readLine();
+                      line = line.trimmed();
+                      if (line.length()>0) {
+                          try_path = line;
+                          QFileInfo try_file(try_path);
+                          this->path = try_path;
+                          if (try_file.exists()) break;
+                      }
+                   }
+                   browsersFile.close();
+                }
+                else {
+                    this->browser_search_paths.append("/usr/bin/waterfox");
+                    this->browser_search_paths.append("/usr/bin/firefox-kde");
+                    this->browser_search_paths.append("/usr/bin/firefox-nightly");
+                    this->browser_search_paths.append("/usr/bin/firefox-developer");
+                    this->browser_search_paths.append("/usr/bin/firefox-beta");
+                    this->browser_search_paths.append("/usr/bin/firefox");
+                    this->browser_search_paths.append("/usr/bin/chromium");
+                    this->browser_search_paths.append("/usr/bin/google-chrome");
+                    this->browser_search_paths.append("/usr/bin/icecat");
+                    this->browser_search_paths.append("/usr/bin/firefox"); //firefox again here to write to browsers.txt if none above exist
+                    for (int i = 0; i < this->browser_search_paths.size(); ++i) {
+                        //cout << this->browser_search_paths.at(i).toLocal8Bit().constData() << endl;
+                        try_path = this->browser_search_paths.at(i);
+                        QFileInfo try_file(try_path);
+                        this->path = try_path;
+                        if (try_file.isFile()) break; //uses /usr/bin/firefox (or whatever is last above) if all else fails
+                    }
+                    QFile caFile(this->browsers_list_path);
+                    caFile.open(QIODevice::WriteOnly | QIODevice::Text);
+                    if(!caFile.isOpen()){
+                        qDebug() << "ERROR unable to open" << this->browsers_list_path << "for output";
+                    }
+                    QTextStream outStream(&caFile);
+                    outStream << this->path;
+                    caFile.close();
+                }
+
+                this->ext_string="desktop";
+                //this->args.append(theoretical_path);
+                QFile inputFile(source_path);
+                if (inputFile.open(QIODevice::ReadOnly))
+                {
+                   QTextStream in(&inputFile);
+                   while (!in.atEnd())
+                   {
+                      QString line = in.readLine();
+                      //if (line.startsWith("[")) {
+                      //    if (line.toLower().startsWith("[internetshortcut]")) url_enable=true;
+                      //    else url_enable=false;
+                      //}
+                      QString this_opener = "url[$e]=";
+                      if (line.toLower().startsWith(this_opener)) {
+                          url_enable=true;
+                          QString url_string = line.right(line.length()-this_opener.length()).trimmed();
+                          if (this->path=="/usr/bin/firefox") {
+                              //BROKEN even with 2 hyphens: this->args.append("-new-tab "+url_string);
+                              //this->args.append("--new-tab");  //creates new WINDOW in Firefox Quantum
+                              this->args.append(url_string);
+                          }
+                          else this->args.append(url_string);
+                          break;
+                      }
+                   }
+                   inputFile.close();
+                }
+            }
+            else if (source_path.toLower().endsWith(".url")) {
                 this->myfolder_name="filehandoff";
                 QString homeLocation = QStandardPaths::locate(QStandardPaths::HomeLocation, QString(), QStandardPaths::LocateDirectory);
                 QString apps_data_path =  QDir::cleanPath(homeLocation + QDir::separator() + ".config");
@@ -166,13 +252,18 @@ void MainWindow::handoff()
                    while (!in.atEnd())
                    {
                       QString line = in.readLine();
+                      QString this_opener = "url=";
                       if (line.startsWith("[")) {
                           if (line.toLower().startsWith("[internetshortcut]")) url_enable=true;
                           else url_enable=false;
                       }
-                      else if (line.toLower().startsWith("url=")) {
-                          QString url_string = line.right(line.length()-4).trimmed();
-                          if (this->path=="/usr/bin/firefox") this->args.append("-new-tab "+url_string);
+                      else if (line.toLower().startsWith(this_opener)) {
+                          QString url_string = line.right(line.length()-this_opener.length()).trimmed();
+                          if (this->path=="/usr/bin/firefox") {
+                              //BROKEN even with 2 hyphens: this->args.append("-new-tab "+url_string);
+                              //this->args.append("--new-tab");  //creates new WINDOW in Firefox Quantum
+                              this->args.append(url_string);
+                          }
                           else this->args.append(url_string);
                           break;
                       }

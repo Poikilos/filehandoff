@@ -1,16 +1,19 @@
 # filehandoff
 Hand off paths from url files, corrected paths from shortcuts, or files themselves--to correct GNU or Wine programs
 
-## Changes:
+## Changes
 * (2017-12-20) added support for the following extensions with "unknown" mimetype: fpp (FlashPrint), mtl (Wavefront material)
 
-## Usage:
+## Usage
 * Associate URL (and url) files and (wine) Adobe PhotoShop Elements 5.0 projects with filehandoff
 * If wrong browser is opened or no browser opens, edit 
     $HOME/.config/filehandoff/browsers.txt
     to include your most preferred browser first (such as /usr/bin/iceweasel)
 (NOTE: there is a bug in 2017-04 release of firefox-beta in antergos which makes firefox always say File not found and try to open a local file instead of the path given as the first parameter)
 * NOTE: Program (C++) must be changed in order to work with other wine programs
+
+## Known Issues
+* handle .desktop files that are not URL (`URL[$e]=`) .desktop files
 
 ## Planned Features
 * ambiguous mimetypes parsing feature:
