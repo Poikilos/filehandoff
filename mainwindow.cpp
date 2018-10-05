@@ -10,6 +10,7 @@
 #include <QtGlobal>  // qEnvironmentVariableIsSet etc
 #include <pwd.h>
 #include <grp.h>
+#include <QMessageBox>
 
 //see https://stackoverflow.com/questions/1009254/programmatically-getting-uid-and-gid-from-username-in-unix
 gid_t MainWindow::getGroupIdByName(const char *name)
@@ -38,6 +39,28 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    this->convert_ext["desktop"] = "desktop";
+    this->convert_ext["pro"] = "pro";
+    this->convert_ext["url"] = "url";
+    this->convert_ext["fpp"] = "fpp";
+    this->convert_ext["psd"] = "image/vnd.adobe.photoshop";
+    this->convert_ext["jpg"] = "image/vnd.adobe.photoshop";
+    this->convert_ext["jpeg"] = "image/vnd.adobe.photoshop";
+    this->convert_ext["jpe"] = "image/vnd.adobe.photoshop";
+    //TODO: this->convert_ext["lnk"] = "application/x-ms-shortcut";  // "Windows link"
+    //this->convert_ext["mtl"] = "text/plain";
+    //this->convert_ext["txt"] = "text/plain";
+    //this->convert_ext["log"] = "text/plain";
+    //NOTE: anything NOT registered above reverts to text/plain!
+    this->editor_search_paths["text/plain"].append("/usr/bin/kate");
+    this->editor_search_paths["text/plain"].append("/usr/bin/gedit");
+    this->editor_search_paths["text/plain"].append("/usr/bin/leafpad");
+    this->editor_search_paths["text/plain"].append("/usr/bin/mousepad");
+    this->editor_search_paths["pro"].append("/usr/bin/qtcreator");
+    this->editor_search_paths["pro"].append("/usr/local/bin/qtcreator");
+    this->editor_search_paths["fpp"].append("/usr/bin/flashprint");
+    this->editor_search_paths["fpp"].append("/usr/local/bin/flashprint");
+    this->editor_search_paths["fpp"].append("/usr/share/FlashPrint/FlashPrint");  // poikilos' install script for Fedora results in FlashForge being here
     QTimer::singleShot(0, this, SLOT(handoff()));
     //handoff();
 }
@@ -100,8 +123,23 @@ void MainWindow::handoff()
                         qDebug() << "Could not finish for unknown reason";
                     }
                 }
+            }  // end if smb:// or \\
+
+            int dot_i = source_path.lastIndexOf('.');
+            this->handoff_type = "text/plain";
+            if ((dot_i > 0) && (dot_i < (source_path.length() - 1))) {
+                this->ext_string = source_path.mid(dot_i+1).toLower();
+                if (this->convert_ext.contains(this->ext_string)) this->handoff_type = this->convert_ext[this->ext_string];
+                //else this->handoff_type = this->ext_string;  // do NOT create unknown types--all cases below should have a corresponding entry in convert_ext. This allows defaulting to text/plain for unknown extension.
             }
-            if (source_path.toLower().endsWith(".desktop")) {
+            else this->ext_string = "";  //ok since filenames with no extension like "LICENSE" fall back to "text/plain" as per default above
+            // elseif 0 then no extension (0 means is hidden file with no extension)
+            //QMessageBox msgBox;
+            //msgBox.setText("ext_string: " + this->ext_string + "\n" +
+            //               "handoff_type: " + this->handoff_type + "\n");
+            //msgBox.exec();
+
+            if (this->handoff_type == "desktop") {
                 //TODO: tidy this up--almost identical to url--should be vastly different if not an internet shortcut
                 this->myfolder_name="filehandoff";
                 QString homeLocation = QStandardPaths::locate(QStandardPaths::HomeLocation, QString(), QStandardPaths::LocateDirectory);
@@ -158,7 +196,6 @@ void MainWindow::handoff()
                     caFile.close();
                 }
 
-                this->ext_string="desktop";
                 //this->args.append(theoretical_path);
                 QFile inputFile(source_path);
                 if (inputFile.open(QIODevice::ReadOnly))
@@ -187,7 +224,7 @@ void MainWindow::handoff()
                    inputFile.close();
                 }
             }
-            else if (source_path.toLower().endsWith(".url")) {
+            else if (this->handoff_type == "url") {
                 this->myfolder_name="filehandoff";
                 QString homeLocation = QStandardPaths::locate(QStandardPaths::HomeLocation, QString(), QStandardPaths::LocateDirectory);
                 QString apps_data_path =  QDir::cleanPath(homeLocation + QDir::separator() + ".config");
@@ -243,7 +280,6 @@ void MainWindow::handoff()
                     caFile.close();
                 }
 
-                this->ext_string="url";
                 //this->args.append(theoretical_path);
                 QFile inputFile(source_path);
                 if (inputFile.open(QIODevice::ReadOnly))
@@ -271,42 +307,7 @@ void MainWindow::handoff()
                    inputFile.close();
                 }
             }
-            else if (source_path.toLower().endsWith(".mtl")) {
-                this->text_editor_search_paths.append("/usr/bin/kate");
-                this->text_editor_search_paths.append("/usr/bin/gedit");
-                this->text_editor_search_paths.append("/usr/bin/leafpad");
-                this->text_editor_search_paths.append("/usr/bin/mousepad");
-                QString try_path;
-                for (int i = 0; i < this->text_editor_search_paths.size(); ++i) {
-                    //cout << this->browser_search_paths.at(i).toLocal8Bit().constData() << endl;
-                    try_path = this->text_editor_search_paths.at(i);
-                    QFileInfo try_file(try_path);
-                    this->path = try_path;
-                    this->args.append(source_path);
-                    if (try_file.isFile()) break; //uses /usr/bin/firefox (or whatever is last above) if all else fails
-                }
-
-                this->ext_string="mtl";
-            }
-            else if (source_path.toLower().endsWith(".fpp")) {
-                QStringList fpp_bin_search_paths;
-                fpp_bin_search_paths.append("/usr/bin/flashprint");
-                fpp_bin_search_paths.append("/usr/local/bin/flashprint");
-                QString try_path;
-                for (int i = 0; i < fpp_bin_search_paths.size(); ++i) {
-                    //cout << this->browser_search_paths.at(i).toLocal8Bit().constData() << endl;
-                    try_path = fpp_bin_search_paths.at(i);
-                    QFileInfo try_file(try_path);
-                    if (try_file.isFile()) {
-                        this->path = try_path;
-                        this->args.append(source_path);
-                        break; //uses /usr/bin/firefox (or whatever is last above) if all else fails
-                    }
-                }
-
-                this->ext_string="fpp";
-            }
-            else if (source_path.toLower().endsWith(".psd") || source_path.toLower().endsWith(".jpg") || source_path.toLower().endsWith(".jpeg") || source_path.toLower().endsWith(".jpe")) {
+            else if (this->handoff_type == "image/vnd.adobe.photoshop") {
                 //would be something like env WINEPREFIX="/home/owner/win32" /usr/bin/wine C:\\Program\ Files\\Adobe\\Photoshop\ Elements\ 5.0\\Photoshop\ Elements\ 5.0.exe
                 //unless you have correctly edited ~/.bashrc and added something like:
                 //export WINEPREFIX=/home/owner/win32
@@ -319,7 +320,7 @@ void MainWindow::handoff()
                 environs.insert("WINEARCH","win32");
                 environs.insert("WINEPREFIX",wine_prefix);
 
-                this->ext_string="psd";
+                this->handoff_type="psd";
 
                 //this->path="/usr/bin/wine";
                 this->path="wine";
@@ -348,7 +349,23 @@ void MainWindow::handoff()
                 this->args.append(dest_path);
                 for (int i=0; i<this->args.length(); i++) reconstructed_command+=" "+args.at(i);
             }
+            else if (this->editor_search_paths.contains(this->handoff_type)) {
+                QString try_path;
+                for (int i = 0; i < this->editor_search_paths[this->handoff_type].size(); ++i) {
+                    //cout << this->browser_search_paths.at(i).toLocal8Bit().constData() << endl;
+                    try_path = this->editor_search_paths[this->handoff_type].at(i);
+                    QFileInfo try_file(try_path);
+                    this->path = try_path;
+                    if (try_file.isFile()) break; //uses /usr/bin/firefox (or whatever is last above) if all else fails
+                }
+                this->args.append(source_path);
+            }
             else {
+                QMessageBox msgBox;
+                msgBox.setText("INTERNAL ERROR: no case is programmed for handoff_type " +
+                               this->handoff_type + "but the handoff type was incorrectly " +
+                               "added to convert_ext or set manually.");
+                msgBox.exec();
             }
         }
         else { //too many arguments, so dump them to the screen:
@@ -364,8 +381,12 @@ void MainWindow::handoff()
             ui->listWidget->addItem("[WINEPREFIX: "+qgetenv("WINEPREFIX")+"]");
             ui->listWidget->addItem("[WINEARCH: "+qgetenv("WINEARCH")+"]");
         }
+        ui->listWidget->addItem("path:");
         ui->listWidget->addItem(this->path);
+        ui->listWidget->addItem("args:");
         ui->listWidget->addItems(this->args);
+
+
         if (this->path.endsWith("wine")) {
             QProcess process;
             process.setProcessEnvironment(environs);
@@ -378,14 +399,14 @@ void MainWindow::handoff()
                 file.open(QIODevice::WriteOnly);
                 file.write(data);
                 file.close();
-                //QApplication::quit();
-                this->close();
+
+                this->close();  // QApplication::quit();
             }
         }
         else {
             QProcess::startDetached(this->path, this->args);
-            //QApplication::quit();
-            this->close();
+
+            this->close();  // QApplication::quit();
         }
         //QTimer::singleShot(0, this, SLOT(QApplication::quit()));
         //QTimer::singleShot(0, this, SLOT(this->close()));
