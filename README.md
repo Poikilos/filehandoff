@@ -30,8 +30,9 @@ local file instead of the path given as the first parameter)
 ### Compiling Issues
 #### Bug where Qt Creator opens project but says no valid kits found
 - First try to install qmake and build tools for your distro.
-  - Debian/Ubuntu/Mint:
-    `sudo apt install build-essentials qt5-qmake qt5-default qt5-qtdeclarative-devel`
+  - Debian/Ubuntu/Mint (along with `qt-creator`):
+    `sudo apt install build-essential qt5-qmake qt5-default qtdeclarative5-dev`--See also old packages for previous OS releases:
+    - changed `qt5-qtdeclarative-devel` to `qtdeclarative5-dev`
   - RHEL:
     `qt5-qtdeclarative-devel` (and others)
 - Diagose by going to Tools, Options
